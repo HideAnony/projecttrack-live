@@ -59,7 +59,9 @@
       </div>
     </div>
     <div class="flex items-center gap-2">
-      <button onclick="pullFromCloud(false)" class="bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-lg text-xs cursor-pointer"><i class="fa-solid fa-rotate mr-1"></i>Sync</button>
+      <button onclick="forceSyncWithAdmin()" class="bg-indigo-600 hover:bg-indigo-500 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white cursor-pointer transition shadow">
+        <i class="fa-solid fa-cloud-arrow-down mr-1"></i>Force Sync Now
+      </button>
       <span id="techBadge" class="bg-emerald-950 text-emerald-300 border border-emerald-700/60 text-xs px-3 py-1.5 rounded-full font-medium"></span>
       <button onclick="techLogout()" class="bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-lg text-xs text-red-300 cursor-pointer">Logout</button>
     </div>
@@ -67,6 +69,15 @@
 </header>
 
 <main class="max-w-5xl mx-auto p-4 sm:p-6 space-y-5">
+  <section class="bg-slate-800/80 border border-slate-700 p-3 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs">
+    <div>
+      <span class="text-slate-400">Logged in Username:</span> <b id="displayTechUser" class="text-emerald-300">---</b>
+      <span class="text-slate-500 ml-3">(Tip: Match exact username assigned by Admin, e.g. <code class="text-cyan-300">tech_vinay</code>)</span>
+    </div>
+    <div class="flex items-center gap-2">
+      <span class="text-slate-400">Active Tasks Loaded:</span> <b id="taskCountBadge" class="text-white">0</b>
+    </div>
+  </section>
   <section id="techTasksList" class="grid md:grid-cols-2 gap-4"></section>
 </main>
 
@@ -113,7 +124,8 @@ function getCloudUrl() { return (localStorage.getItem(CLOUD_URL_KEY) || '').repl
 
 function updateCloudBadge() {
   const badge = document.getElementById('cloudBadge');
-  if (getCloudUrl()) {
+  const url = getCloudUrl();
+  if (url) {
     badge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-700';
     badge.textContent = 'Cloud Live';
   } else {
@@ -124,9 +136,13 @@ function updateCloudBadge() {
 
 async function pullFromCloud(silent = true) {
   const baseUrl = getCloudUrl();
-  if (!baseUrl) return;
+  if (!baseUrl) {
+    loadProjects();
+    render();
+    return;
+  }
   try {
-    const res = await fetch(`${baseUrl}/infratrack_store.json`);
+    const res = await fetch(`${baseUrl}/infratrack_store.json?t=` + Date.now());
     if (!res.ok) return;
     const data = await res.json();
     if (data && Array.isArray(data.projects)) {
@@ -135,9 +151,13 @@ async function pullFromCloud(silent = true) {
       if (Array.isArray(data.serviceCalls)) localStorage.setItem(CALL_KEY, JSON.stringify(data.serviceCalls));
       if (Array.isArray(data.feed)) localStorage.setItem(TECH_PM_FEED_KEY, JSON.stringify(data.feed));
       render();
-      if (!silent) toast('Synced latest tasks from Admin Cloud.');
+      if (!silent) toast('Cloud sync successful!');
     }
-  } catch (e) { console.warn(e); }
+  } catch (e) {
+    console.warn('Pull cloud warning:', e);
+    loadProjects();
+    render();
+  }
 }
 
 async function pushToCloud() {
@@ -151,11 +171,21 @@ async function pushToCloud() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ projects, serviceCalls, feed, updatedAt: new Date().toISOString() })
     });
-  } catch (e) { console.warn(e); }
+  } catch (e) { console.warn('Push cloud warning:', e); }
+}
+
+async function forceSyncWithAdmin() {
+  toast('Syncing with Admin cloud & local storage...');
+  await pullFromCloud(false);
+  loadProjects();
+  render();
 }
 
 function loadProjects() {
-  try { projects = JSON.parse(localStorage.getItem(KEY) || '[]'); } catch { projects = []; }
+  try {
+    projects = JSON.parse(localStorage.getItem(KEY) || 'null') || [];
+    if (!Array.isArray(projects)) projects = [];
+  } catch { projects = []; }
 }
 
 function persist() {
@@ -183,7 +213,7 @@ async function handleTechLogin(e) {
   );
   const err = document.getElementById('loginErr');
   if (!matched) {
-    err.textContent = 'No assigned site found for this Username & PIN. Ask Admin to confirm & sync your task.';
+    err.textContent = `No site found for username "${user}" & PIN. Check Admin dashboard for exact username (e.g. tech_vinay).`;
     err.classList.remove('hidden');
     return;
   }
@@ -207,6 +237,7 @@ function initTechPortal() {
   }
   document.getElementById('loginModal').classList.add('hidden');
   document.getElementById('techBadge').textContent = `Tech: ${activeTech.user}`;
+  document.getElementById('displayTechUser').textContent = activeTech.user;
   loadProjects();
   render();
   pullFromCloud(true);
@@ -216,6 +247,7 @@ function render() {
   loadProjects();
   if (!activeTech) return;
   const assigned = projects.filter(p => (p.technicianUser || '').toLowerCase().trim() === activeTech.user);
+  document.getElementById('taskCountBadge').textContent = assigned.length;
 
   document.getElementById('techTasksList').innerHTML = assigned.length ? assigned.map(p => {
     const progress = Number(p.progress) || 0;
@@ -249,11 +281,11 @@ function render() {
 
         <div class="bg-slate-900/70 p-2.5 rounded-lg border border-slate-700/60 text-xs max-h-40 overflow-y-auto space-y-1">
           <p class="text-emerald-300 font-semibold mb-1"><i class="fa fa-history mr-1"></i> Permanent History & DPR Log:</p>
-          ${(p.dprLogs||[]).map(d => `<div class="border-b border-slate-800 last:border-0 py-1 text-slate-300"><span class="text-slate-500 font-mono text-[10px]">${esc(d.date)}</span>: ${esc(d.text)}</div>`).join('') || '<p class="text-slate-500">No DPR updates submitted yet.</p>'}
+          ${(p.dprLogs||[]).map(d => `<div class="border-b border-slate-800 last:border-0 py-1 text-slate-300"><span class="text-slate-500 font-mono text-[10px]">${esc(d.date)}</span>: ${esc(d.text)}</div>`).join('') || '<span class="text-slate-500">No DPR updates submitted yet.</span>'}
         </div>
       </article>
     `;
-  }).join('') : '<div class="col-span-full text-center text-slate-400 p-10 bg-slate-800 rounded-xl">No active sites or confirmed service calls assigned to you yet.</div>';
+  }).join('') : '<div class="col-span-full text-center text-slate-400 p-10 bg-slate-800 rounded-xl">No active sites or confirmed service calls assigned to username <b>' + esc(activeTech.user) + '</b>. Ask Admin to confirm & assign your username.</div>';
 }
 
 function openDprModal(id) {
@@ -298,7 +330,7 @@ function submitDprUpdate(e) {
   persist();
   document.getElementById('dprModal').classList.add('hidden');
   render();
-  toast('DPR update submitted & permanently saved in history!');
+  toast('DPR update submitted & permanently synced to Admin!');
 }
 
 function toast(msg) {
@@ -308,8 +340,8 @@ function toast(msg) {
   setTimeout(() => el.classList.add('hidden'), 3000);
 }
 
-window.addEventListener('storage', e => { if (e.key === KEY) render(); });
-setInterval(() => pullFromCloud(true), 6000);
+window.addEventListener('storage', e => { if (e.key === KEY || e.key === CALL_KEY) render(); });
+setInterval(() => pullFromCloud(true), 5000);
 
 initTechPortal();
 </script>
