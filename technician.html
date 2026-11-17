@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-900 text-slate-100">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ProjectTrack Live — Field Technician Portal | Netlogic Systems</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  body { font-family: 'Inter', sans-serif; }
+  input, select, textarea { color-scheme: dark; }
+  .field { width: 100%; background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 9px 11px; color: #e2e8f0; font-size: 0.875rem; }
+  .field:focus { outline: none; border-color: #10b981; }
+  .progress-bar { transition: width .35s ease; }
+</style>
+</head>
+<body class="min-h-full text-slate-100 bg-slate-900">
+
+<!-- TECHNICIAN LOGIN MODAL -->
+<div id="loginModal" class="fixed inset-0 z-50 bg-slate-950 flex items-center justify-center p-4">
+  <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 sm:p-8 max-w-md w-full shadow-2xl">
+    <div class="text-center mb-6">
+      <div class="w-12 h-12 rounded-xl bg-emerald-600 grid place-items-center mx-auto mb-3">
+        <i class="fa-solid fa-screwdriver-wrench text-xl"></i>
+      </div>
+      <h2 class="text-xl font-bold">Field Technician Portal</h2>
+      <p class="text-xs text-slate-400 mt-1">Netlogic Systems (I) Pvt. Ltd. • Log in with your assigned Technician Username & PIN</p>
+    </div>
+    <form onsubmit="handleTechLogin(event)" class="space-y-4">
+      <div>
+        <label class="text-xs text-slate-300">Technician Username *</label>
+        <input id="techUserInput" required class="field mt-1" placeholder="e.g. tech_vinay">
+      </div>
+      <div>
+        <label class="text-xs text-slate-300">Technician PIN *</label>
+        <input id="techPinInput" type="password" required class="field mt-1" placeholder="e.g. 1234">
+      </div>
+      <p id="loginErr" class="text-xs text-red-400 hidden"></p>
+      <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2.5 rounded-lg text-sm transition cursor-pointer">
+        Open My Assigned Sites <i class="fa-solid fa-arrow-right ml-1"></i>
+      </button>
+    </form>
+  </div>
+</div>
+
+<header class="sticky top-0 z-30 bg-slate-800/95 border-b border-slate-700">
+  <div class="max-w-5xl mx-auto p-4 flex flex-wrap justify-between items-center gap-3">
+    <div class="flex gap-3 items-center">
+      <a href="./index.html" class="w-10 h-10 rounded-xl bg-emerald-600 hover:bg-emerald-500 grid place-items-center transition">
+        <i class="fa-solid fa-helmet-safety"></i>
+      </a>
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 class="font-bold text-lg">Field Technician DPR Portal</h1>
+          <span id="cloudBadge" class="text-[10px] px-2 py-0.5 rounded-full bg-slate-700 text-slate-300">Local</span>
+        </div>
+        <p class="text-xs text-slate-400">Daily Progress Reports & Confirmed Additional Service Tasks</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <button onclick="pullFromCloud(false)" class="bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-lg text-xs cursor-pointer"><i class="fa-solid fa-rotate mr-1"></i>Sync</button>
+      <span id="techBadge" class="bg-emerald-950 text-emerald-300 border border-emerald-700/60 text-xs px-3 py-1.5 rounded-full font-medium"></span>
+      <button onclick="techLogout()" class="bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-lg text-xs text-red-300 cursor-pointer">Logout</button>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-5xl mx-auto p-4 sm:p-6 space-y-5">
+  <section id="techTasksList" class="grid md:grid-cols-2 gap-4"></section>
+</main>
+
+<!-- POST DPR / PROGRESS UPDATE MODAL -->
+<div id="dprModal" class="hidden fixed inset-0 z-50 bg-black/80 p-4 grid place-items-center">
+  <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl">
+    <div class="p-4 border-b border-slate-700 flex justify-between items-center">
+      <h3 id="dprModalTitle" class="font-bold text-base text-emerald-300">Post Daily Work Update (DPR)</h3>
+      <button onclick="document.getElementById('dprModal').classList.add('hidden')" class="text-slate-400 text-xl cursor-pointer">&times;</button>
+    </div>
+    <form onsubmit="submitDprUpdate(event)" class="p-5 space-y-4">
+      <input id="dprProjectId" type="hidden">
+      <label class="block text-xs">Updated Work Completion %
+        <input id="dprProgress" type="number" min="0" max="100" required class="field mt-1">
+      </label>
+      <label class="block text-xs">Today's Site Work Summary (DPR Log) *
+        <textarea id="dprText" rows="3" required class="field mt-1" placeholder="e.g. Installed 4 IP cameras on 2nd floor, terminated Cat6 cables, tested PoE switch..."></textarea>
+      </label>
+      <div class="flex justify-end gap-2 pt-2">
+        <button type="button" onclick="document.getElementById('dprModal').classList.add('hidden')" class="bg-slate-700 px-4 py-2 rounded-lg text-xs cursor-pointer">Cancel</button>
+        <button type="submit" class="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded-lg text-xs font-semibold text-white cursor-pointer">Submit & Sync to Admin</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="toast" class="fixed bottom-4 right-4 hidden bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-xl text-sm z-50"></div>
+
+<script>
+const KEY = 'infratrack_dispatch_projects_v2';
+const CALL_KEY = 'infratrack_service_calls_v1';
+const TECH_PM_FEED_KEY = 'infratrack_pm_tech_updates_v1';
+const CLOUD_URL_KEY = 'infratrack_firebase_db_url';
+
+const urlParams = new URLSearchParams(window.location.search);
+if (urlParams.get('cloud')) {
+  localStorage.setItem(CLOUD_URL_KEY, urlParams.get('cloud').replace(/\/+$/, ''));
+}
+
+let projects = [];
+let activeTech = JSON.parse(localStorage.getItem('infratrack_active_tech') || 'null');
+
+function getCloudUrl() { return (localStorage.getItem(CLOUD_URL_KEY) || '').replace(/\/+$/, ''); }
+
+function updateCloudBadge() {
+  const badge = document.getElementById('cloudBadge');
+  if (getCloudUrl()) {
+    badge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-700';
+    badge.textContent = 'Cloud Live';
+  } else {
+    badge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-slate-700 text-slate-300';
+    badge.textContent = 'Local Mode';
+  }
+}
+
+async function pullFromCloud(silent = true) {
+  const baseUrl = getCloudUrl();
+  if (!baseUrl) return;
+  try {
+    const res = await fetch(`${baseUrl}/infratrack_store.json`);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data && Array.isArray(data.projects)) {
+      projects = data.projects;
+      localStorage.setItem(KEY, JSON.stringify(projects));
+      if (Array.isArray(data.serviceCalls)) localStorage.setItem(CALL_KEY, JSON.stringify(data.serviceCalls));
+      if (Array.isArray(data.feed)) localStorage.setItem(TECH_PM_FEED_KEY, JSON.stringify(data.feed));
+      render();
+      if (!silent) toast('Synced latest tasks from Admin Cloud.');
+    }
+  } catch (e) { console.warn(e); }
+}
+
+async function pushToCloud() {
+  const baseUrl = getCloudUrl();
+  if (!baseUrl) return;
+  try {
+    const serviceCalls = JSON.parse(localStorage.getItem(CALL_KEY) || '[]');
+    const feed = JSON.parse(localStorage.getItem(TECH_PM_FEED_KEY) || '[]');
+    await fetch(`${baseUrl}/infratrack_store.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projects, serviceCalls, feed, updatedAt: new Date().toISOString() })
+    });
+  } catch (e) { console.warn(e); }
+}
+
+function loadProjects() {
+  try { projects = JSON.parse(localStorage.getItem(KEY) || '[]'); } catch { projects = []; }
+}
+
+function persist() {
+  localStorage.setItem(KEY, JSON.stringify(projects));
+  pushToCloud();
+}
+
+function esc(v='') { return String(v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+async function handleTechLogin(e) {
+  e.preventDefault();
+  await pullFromCloud(true);
+  loadProjects();
+  const user = document.getElementById('techUserInput').value.trim().toLowerCase();
+  const pin = document.getElementById('techPinInput').value.trim();
+  const matched = projects.find(p =>
+    (p.technicianUser || '').toLowerCase().trim() === user &&
+    String(p.technicianPass || '').trim() === pin
+  );
+  const err = document.getElementById('loginErr');
+  if (!matched) {
+    err.textContent = 'No assigned site found for this Username & PIN. Ask Admin to confirm & sync your task.';
+    err.classList.remove('hidden');
+    return;
+  }
+  err.classList.add('hidden');
+  activeTech = { user, pin };
+  localStorage.setItem('infratrack_active_tech', JSON.stringify(activeTech));
+  initTechPortal();
+}
+
+function techLogout() {
+  localStorage.removeItem('infratrack_active_tech');
+  activeTech = null;
+  document.getElementById('loginModal').classList.remove('hidden');
+}
+
+function initTechPortal() {
+  updateCloudBadge();
+  if (!activeTech) {
+    document.getElementById('loginModal').classList.remove('hidden');
+    return;
+  }
+  document.getElementById('loginModal').classList.add('hidden');
+  document.getElementById('techBadge').textContent = `Tech: ${activeTech.user}`;
+  loadProjects();
+  render();
+  pullFromCloud(true);
+}
+
+function render() {
+  loadProjects();
+  if (!activeTech) return;
+  const assigned = projects.filter(p => (p.technicianUser || '').toLowerCase().trim() === activeTech.user);
+
+  document.getElementById('techTasksList').innerHTML = assigned.length ? assigned.map(p => {
+    const progress = Number(p.progress) || 0;
+    return `
+      <article class="bg-slate-800 border ${p.isServiceCall ? 'border-amber-600/70' : 'border-slate-700'} rounded-xl p-4 space-y-3 shadow">
+        <div class="flex justify-between items-start gap-2">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-mono text-cyan-400">${esc(p.id)}</span>
+              ${p.isServiceCall ? '<span class="text-[10px] bg-amber-950 text-amber-300 border border-amber-700 px-2 py-0.5 rounded-full">Confirmed Additional Work</span>' : ''}
+            </div>
+            <h2 class="font-bold text-lg mt-0.5">${esc(p.name)}</h2>
+            <p class="text-xs text-slate-400"><i class="fa-solid fa-location-dot mr-1"></i>${esc(p.location)} • PM: <b>${esc(p.pm)}</b></p>
+          </div>
+          <button onclick="openDprModal('${esc(p.id)}')" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg cursor-pointer">
+            <i class="fa-solid fa-plus mr-1"></i>Post DPR
+          </button>
+        </div>
+
+        <div class="bg-slate-900 p-2.5 rounded-lg text-xs space-y-1">
+          <p class="text-purple-300 font-semibold">Materials Allocated (${(p.materials||[]).length}):</p>
+          ${(p.materials||[]).map(m => `<p class="text-slate-300">• ${esc(m.item)} (${esc(m.qty)} ${esc(m.unit)}) ${m.model ? `[${esc(m.model)}]` : ''}</p>`).join('') || '<p class="text-slate-500">No materials listed.</p>'}
+        </div>
+
+        <div>
+          <div class="flex justify-between text-xs"><span>Completion</span><b>${progress}%</b></div>
+          <div class="h-2 bg-slate-900 rounded-full mt-1 overflow-hidden">
+            <div class="h-full bg-emerald-500 progress-bar" style="width:${progress}%"></div>
+          </div>
+        </div>
+
+        <div class="bg-slate-900/70 p-2.5 rounded-lg border border-slate-700/60 text-xs space-y-1">
+          <p class="text-emerald-300 font-semibold">My Daily Work History (DPR):</p>
+          ${(p.dprLogs||[]).map(d => `<div class="border-b border-slate-800 last:border-0 py-1"><span class="text-slate-500">${esc(d.date)}</span>: ${esc(d.text)}</div>`).join('') || '<p class="text-slate-500">No DPR updates submitted yet.</p>'}
+        </div>
+      </article>
+    `;
+  }).join('') : '<div class="col-span-full text-center text-slate-400 p-10 bg-slate-800 rounded-xl">No active sites or confirmed service calls assigned to you yet.</div>';
+}
+
+function openDprModal(id) {
+  const p = projects.find(x => x.id === id);
+  if (!p) return;
+  document.getElementById('dprProjectId').value = id;
+  document.getElementById('dprModalTitle').textContent = `Post DPR — ${p.name}`;
+  document.getElementById('dprProgress').value = p.progress || 0;
+  document.getElementById('dprText').value = '';
+  document.getElementById('dprModal').classList.remove('hidden');
+}
+
+function submitDprUpdate(e) {
+  e.preventDefault();
+  loadProjects();
+  const id = document.getElementById('dprProjectId').value;
+  const idx = projects.findIndex(x => x.id === id);
+  if (idx === -1) return;
+
+  const newProg = Math.max(0, Math.min(100, Number(document.getElementById('dprProgress').value) || 0));
+  const note = document.getElementById('dprText').value.trim();
+  const today = new Date().toISOString().slice(0, 10);
+
+  if (!Array.isArray(projects[idx].dprLogs)) projects[idx].dprLogs = [];
+  projects[idx].dprLogs.unshift({
+    date: today,
+    text: `[Tech ${activeTech.user} • ${newProg}%] ${note}`
+  });
+  projects[idx].progress = newProg;
+
+  // Also mirror the DPR log to the parent project if this is a confirmed service call
+  if (projects[idx].parentProjectId) {
+    const parentIdx = projects.findIndex(p => p.id === projects[idx].parentProjectId);
+    if (parentIdx !== -1) {
+      if (!Array.isArray(projects[parentIdx].dprLogs)) projects[parentIdx].dprLogs = [];
+      projects[parentIdx].dprLogs.unshift({
+        date: today,
+        text: `[${id} Tech ${activeTech.user} • ${newProg}%] ${note}`
+      });
+    }
+  }
+
+  persist();
+  document.getElementById('dprModal').classList.add('hidden');
+  render();
+  toast('DPR update submitted & synced to Admin Dashboard!');
+}
+
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.remove('hidden');
+  setTimeout(() => el.classList.add('hidden'), 3000);
+}
+
+window.addEventListener('storage', e => { if (e.key === KEY) render(); });
+setInterval(() => pullFromCloud(true), 8000);
+
+initTechPortal();
+</script>
+</body>
+</html>
