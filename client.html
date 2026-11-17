@@ -51,7 +51,7 @@ input,select,textarea{color-scheme:dark}.field{width:100%;background:#0f172a;bor
           <h1 class="font-bold text-lg sm:text-xl">Project Manager Operations Portal</h1>
           <span id="cloudBadge" class="text-[10px] px-2 py-0.5 rounded-full bg-slate-700 text-slate-300">Local</span>
         </div>
-        <p class="text-xs text-slate-400">Netlogic Systems (I) Pvt. Ltd. • Site Operations & Confirmed Service Calls</p>
+        <p class="text-xs text-slate-400">Netlogic Systems (I) Pvt. Ltd. • Real-time Sync & History</p>
       </div>
     </div>
     <div class="flex items-center gap-2">
@@ -137,10 +137,10 @@ input,select,textarea{color-scheme:dark}.field{width:100%;background:#0f172a;bor
       </section>
 
       <section class="border-t border-slate-700 pt-4">
-        <h3 class="text-emerald-400 font-semibold mb-3">5. Site Progress & Remarks</h3>
+        <h3 class="text-emerald-400 font-semibold mb-3">5. Site Progress & Permanent History</h3>
         <div class="grid sm:grid-cols-2 gap-3">
           <label class="text-xs">Progress %<input id="progress" type="number" min="0" max="100" value="0" required class="field mt-1"></label>
-          <label class="text-xs">Site Remark / Update (Synced to Admin)<textarea id="remark" rows="2" class="field mt-1"></textarea></label>
+          <label class="text-xs">Site Remark / Update (Synced to Admin History)<textarea id="remark" rows="2" class="field mt-1"></textarea></label>
         </div>
       </section>
 
@@ -304,6 +304,10 @@ function render() {
         <div class="flex justify-between text-xs"><span>Site Progress</span><b class="${done?'text-emerald-400':'text-blue-400'}">${progress}%</b></div>
         <div class="h-2 bg-slate-900 rounded-full mt-1 overflow-hidden"><div class="h-full ${done?'bg-emerald-500':'bg-blue-500'} progress-bar" style="width:${progress}%"></div></div>
       </div>
+      <div class="text-xs bg-slate-900/60 p-2.5 rounded-lg border border-slate-700/50 max-h-32 overflow-y-auto space-y-1">
+        <p class="text-purple-300 font-semibold mb-1"><i class="fa fa-history mr-1"></i> Permanent History Log:</p>
+        ${(p.dprLogs || []).map(d => `<div class="text-slate-300 py-0.5 border-b border-slate-800 last:border-0"><span class="text-slate-500 font-mono text-[10px]">${esc(d.date)}</span>: ${esc(d.text)}</div>`).join('') || '<span class="text-slate-500">No history logged yet.</span>'}
+      </div>
     </article>`;
   }).join('') : `<div class="col-span-full text-center text-slate-400 p-10 bg-slate-800 rounded-xl"><i class="fa fa-folder-open text-3xl mb-3"></i><p>No projects assigned to PM "${esc(currentPM)}" found.</p></div>`;
 }
@@ -390,10 +394,13 @@ function saveProject(e){
   updateData.dcImage = pendingImage;
   updateData.updatedAt = new Date().toISOString();
 
-  // Log PM update into DPR logs so Admin immediately sees what changed
+  const d = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  const stamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+
   const logs = Array.isArray(projects[idx].dprLogs) ? projects[idx].dprLogs : [];
   logs.unshift({
-    date: new Date().toISOString().slice(0, 10),
+    date: stamp,
     text: `[PM ${currentPM}] Dispatch: ${updateData.dispatchStatus}, Progress: ${updateData.progress}%${updateData.remark ? ' — ' + updateData.remark : ''}`
   });
   updateData.dprLogs = logs;
@@ -408,7 +415,7 @@ function saveProject(e){
 function toast(t){const el=document.getElementById('toast');el.textContent=t;el.classList.remove('hidden');setTimeout(()=>el.classList.add('hidden'),3000);}
 
 window.addEventListener('storage', (e) => { if(e.key === KEY) render(); });
-setInterval(() => pullFromCloud(true), 8000);
+setInterval(() => pullFromCloud(true), 6000);
 
 initPortal();
 </script>
