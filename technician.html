@@ -82,7 +82,7 @@
       <label class="block text-xs">Updated Work Completion %
         <input id="dprProgress" type="number" min="0" max="100" required class="field mt-1">
       </label>
-      <label class="block text-xs">Today's Site Work Summary (DPR Log) *
+      <label class="block text-xs">Today's Site Work Summary (Saved to Permanent History) *
         <textarea id="dprText" rows="3" required class="field mt-1" placeholder="e.g. Installed 4 IP cameras on 2nd floor, terminated Cat6 cables, tested PoE switch..."></textarea>
       </label>
       <div class="flex justify-end gap-2 pt-2">
@@ -165,6 +165,12 @@ function persist() {
 
 function esc(v='') { return String(v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
+function nowFormatted() {
+  const d = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 async function handleTechLogin(e) {
   e.preventDefault();
   await pullFromCloud(true);
@@ -241,9 +247,9 @@ function render() {
           </div>
         </div>
 
-        <div class="bg-slate-900/70 p-2.5 rounded-lg border border-slate-700/60 text-xs space-y-1">
-          <p class="text-emerald-300 font-semibold">My Daily Work History (DPR):</p>
-          ${(p.dprLogs||[]).map(d => `<div class="border-b border-slate-800 last:border-0 py-1"><span class="text-slate-500">${esc(d.date)}</span>: ${esc(d.text)}</div>`).join('') || '<p class="text-slate-500">No DPR updates submitted yet.</p>'}
+        <div class="bg-slate-900/70 p-2.5 rounded-lg border border-slate-700/60 text-xs max-h-40 overflow-y-auto space-y-1">
+          <p class="text-emerald-300 font-semibold mb-1"><i class="fa fa-history mr-1"></i> Permanent History & DPR Log:</p>
+          ${(p.dprLogs||[]).map(d => `<div class="border-b border-slate-800 last:border-0 py-1 text-slate-300"><span class="text-slate-500 font-mono text-[10px]">${esc(d.date)}</span>: ${esc(d.text)}</div>`).join('') || '<p class="text-slate-500">No DPR updates submitted yet.</p>'}
         </div>
       </article>
     `;
@@ -269,22 +275,21 @@ function submitDprUpdate(e) {
 
   const newProg = Math.max(0, Math.min(100, Number(document.getElementById('dprProgress').value) || 0));
   const note = document.getElementById('dprText').value.trim();
-  const today = new Date().toISOString().slice(0, 10);
+  const stamp = nowFormatted();
 
   if (!Array.isArray(projects[idx].dprLogs)) projects[idx].dprLogs = [];
   projects[idx].dprLogs.unshift({
-    date: today,
+    date: stamp,
     text: `[Tech ${activeTech.user} • ${newProg}%] ${note}`
   });
   projects[idx].progress = newProg;
 
-  // Also mirror the DPR log to the parent project if this is a confirmed service call
   if (projects[idx].parentProjectId) {
     const parentIdx = projects.findIndex(p => p.id === projects[idx].parentProjectId);
     if (parentIdx !== -1) {
       if (!Array.isArray(projects[parentIdx].dprLogs)) projects[parentIdx].dprLogs = [];
       projects[parentIdx].dprLogs.unshift({
-        date: today,
+        date: stamp,
         text: `[${id} Tech ${activeTech.user} • ${newProg}%] ${note}`
       });
     }
@@ -293,7 +298,7 @@ function submitDprUpdate(e) {
   persist();
   document.getElementById('dprModal').classList.add('hidden');
   render();
-  toast('DPR update submitted & synced to Admin Dashboard!');
+  toast('DPR update submitted & permanently saved in history!');
 }
 
 function toast(msg) {
@@ -304,7 +309,7 @@ function toast(msg) {
 }
 
 window.addEventListener('storage', e => { if (e.key === KEY) render(); });
-setInterval(() => pullFromCloud(true), 8000);
+setInterval(() => pullFromCloud(true), 6000);
 
 initTechPortal();
 </script>
